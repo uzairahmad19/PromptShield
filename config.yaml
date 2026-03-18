@@ -1,0 +1,106 @@
+# ============================================================
+#  PromptShield Configuration
+#  All tunable parameters live here. Never hardcode these.
+# ============================================================
+
+project:
+  name: "PromptShield"
+  version: "1.0.0"
+  description: "Intent Verification for Agentic AI Pipelines"
+
+# ── LLM (Ollama) ─────────────────────────────────────────────
+llm:
+  provider: "ollama"
+  model: "llama3.2"
+  base_url: "http://localhost:11434"
+  temperature: 0.0          # 0.0 = deterministic, important for a security system
+  max_tokens: 2048
+
+# ── Embedding Model (shared across all layers) ───────────────
+embedder:
+  model_name: "all-MiniLM-L6-v2"
+  device: "cpu"                    # Change to "cuda" if GPU available
+  batch_size: 32
+
+# ── Layer 1: Intent Classifier ───────────────────────────────
+layer1:
+  enabled: true
+  similarity_threshold: 0.72
+  nli_model: "facebook/bart-large-mnli"
+  nli_threshold: 0.75
+  risk_threshold: 0.70
+  top_k: 5
+
+# ── Layer 2: Semantic Policy Check ───────────────────────────
+layer2:
+  enabled: true
+  policy_violation_threshold: 0.68
+  policies_file: "data/policy_rules/policies.json"
+  policy_embeddings_file: "data/attack_embeddings/policy_embeddings.pkl"
+
+# ── Layer 3: Context Integrity Check (Indirect Injection) ────
+layer3:
+  enabled: true
+  injection_similarity_threshold: 0.70
+  intent_drift_threshold: 0.40
+  structural_markers:
+    - "ignore previous instructions"
+    - "ignore all prior"
+    - "disregard your"
+    - "new directive:"
+    - "system:"
+    - "[inst]"
+    - "[/inst]"
+    - "<|im_start|>"
+    - "you are now"
+    - "assistant:"
+    - "your new instructions"
+    - "forget everything"
+    - "override:"
+    - "###instruction"
+  max_tool_output_chars: 8000
+
+# ── Layer 4: Response Auditor ─────────────────────────────────
+layer4:
+  enabled: true
+  system_prompt_leak_threshold: 0.80
+  intent_fidelity_threshold: 0.30
+  toxicity_threshold: 0.75
+  pii_entities:
+    - "PERSON"
+    - "EMAIL_ADDRESS"
+    - "PHONE_NUMBER"
+    - "CREDIT_CARD"
+    - "US_SSN"
+    - "IP_ADDRESS"
+    - "URL"
+    - "LOCATION"
+
+# ── Audit Logging ─────────────────────────────────────────────
+logging:
+  log_dir: "logs"
+  log_file: "promptshield_audit.jsonl"
+  log_level: "INFO"
+  log_inputs: true
+  log_layer_decisions: true
+  log_tool_outputs: true
+  log_final_response: true
+
+# ── Agent Tools ───────────────────────────────────────────────
+tools:
+  web_search:
+    enabled: true
+    max_results: 3
+  file_reader:
+    enabled: true
+    allowed_extensions: [".txt", ".md", ".json", ".csv"]
+    max_file_size_kb: 500
+  calculator:
+    enabled: true
+
+# ── Evaluation ────────────────────────────────────────────────
+evaluation:
+  hackaprompt_dataset: "hackaprompt/hackaprompt-dataset"
+  tensortrust_dataset: "tensortrust/tensortrust-data"
+  max_eval_samples: 500
+  output_dir: "evaluation/results"
