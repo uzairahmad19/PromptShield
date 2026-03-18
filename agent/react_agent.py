@@ -10,7 +10,7 @@ import yaml
 
 from langchain_ollama import OllamaLLM
 from langchain.agents import create_react_agent
-from langchain.agents.agent import AgentExecutor          # moved here in v1.0+
+from langchain.agents.agent import AgentExecutor
 from langchain_core.prompts import PromptTemplate
 
 from agent.tools import get_all_tools
@@ -30,17 +30,18 @@ def build_llm() -> OllamaLLM:
         model=llm_cfg["model"],
         base_url=llm_cfg["base_url"],
         temperature=llm_cfg["temperature"],
+        # NOTE: do NOT pass stop= here — LangChain's ReAct agent
+        # already injects its own stop sequences internally.
+        # Passing stop here causes "stop found in both input and default params".
     )
 
 
 def build_prompt() -> PromptTemplate:
     """
-    ReAct prompt. LangChain requires these four input variables:
-    input, tools, tool_names, agent_scratchpad
+    Inject system prompt via string replace BEFORE handing to PromptTemplate
+    so LangChain's variable parser never sees {system_prompt}.
     """
-    template = REACT_PROMPT_TEMPLATE.replace(
-        "{system_prompt}", SYSTEM_PROMPT
-    )
+    template = REACT_PROMPT_TEMPLATE.replace("{system_prompt}", SYSTEM_PROMPT)
     return PromptTemplate(
         input_variables=["input", "tools", "tool_names", "agent_scratchpad"],
         template=template,
@@ -59,9 +60,10 @@ def build_agent(verbose: bool = True) -> AgentExecutor:
         tools=tools,
         verbose=verbose,
         handle_parsing_errors=True,
-        max_iterations=8,
-        max_execution_time=60,
+        max_iterations=10,
+        max_execution_time=90,
         return_intermediate_steps=True,
+        early_stopping_method="generate",
     )
 
 

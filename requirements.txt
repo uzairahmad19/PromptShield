@@ -1,8 +1,7 @@
 # ============================================================
 #  PromptShield Dependencies
 #  Install with: pip install -r requirements.txt
-#
-#  Versions tested on Python 3.11 / Windows & Linux
+#  Tested on Python 3.11 / Windows & Linux
 # ============================================================
 
 # ── Core ML / Embeddings ──────────────────────────────────────
@@ -13,11 +12,14 @@ torch>=2.2.0
 # ── Vector Search ─────────────────────────────────────────────
 faiss-cpu>=1.8.0
 
-# ── LangChain stack (pinned to stable compatible set) ─────────
+# ── LangChain stack ───────────────────────────────────────────
 langchain>=0.2.0,<0.4.0
 langchain-core>=0.2.0,<0.4.0
 langchain-community>=0.2.0,<0.4.0
 langchain-ollama>=0.1.0
+
+# ── DuckDuckGo search (renamed from duckduckgo-search to ddgs) ──
+ddgs>=9.0.0
 
 # ── NLP / PII Detection ───────────────────────────────────────
 spacy>=3.7.0,<4.0.0
