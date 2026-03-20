@@ -1,96 +1,119 @@
-# PromptShield: Intent Verification for Agentic AI Pipelines
+# PromptShield
+**Intent Verification for Agentic AI Pipelines**
 
-> A multi-layered semantic guardrail system that detects and neutralizes  
-> both direct and indirect prompt injection attacks in agentic AI systems.
-
-**B.Tech Final Year Major Project** | Jamia Hamdard, New Delhi  
-**Student**: Uzair Ahmad | **Tech Stack**: Python, LangChain, Ollama, SentenceTransformers, FAISS
+B.Tech Final Year Project — Jamia Hamdard  
+Uzair Ahmad | Computer Science
 
 ---
 
-## What PromptShield Does
+## What it does
 
-Modern agentic AI systems (like ReAct agents) are vulnerable to **prompt injection attacks** — attempts to hijack an AI agent's behavior by embedding malicious instructions in user input or in external data the agent retrieves.
-
-PromptShield wraps a LangChain ReAct agent with **4 semantic defense layers**:
+PromptShield wraps a LangChain ReAct agent (Ollama llama3.2) with four semantic guardrail layers that detect and block both direct and indirect prompt injection attacks.
 
 ```
-User Input → [Layer 1: Intent Classifier] → [Layer 2: Policy Check]
-          → [Agent + Tools] → [Layer 3: Context Integrity] → [Layer 4: Response Auditor]
-          → Safe Response
+User Input
+  → Layer 1: Intent Classifier      (FAISS similarity + zero-shot NLI)
+  → Layer 2: Semantic Policy Check  (policy violation embeddings)
+  → Agent runs tools
+  → Layer 3: Context Integrity      (indirect injection in tool outputs)
+  → LLM generates response
+  → Layer 4: Response Auditor       (PII, system prompt leak, toxicity)
+  → Safe response
 ```
 
-| Layer | Name | Guards Against |
-|-------|------|----------------|
-| 1 | Intent Classifier | Direct jailbreaks, role overrides, prompt extraction |
-| 2 | Semantic Policy Check | Policy-violating requests in any paraphrase |
-| 3 | Context Integrity Check | **Indirect injection** via tool outputs (web, files, DBs) |
-| 4 | Response Auditor | PII leaks, system prompt exposure, hijacked responses |
+Layer 3 is the novel contribution — no existing guardrail system inspects tool outputs for indirect injection in real-time before the LLM sees them.
 
 ---
 
-## Quick Start
+## Setup
+
+**Requirements:** Python 3.11+, Java not needed, Ollama installed
 
 ```bash
-# 1. Clone and install
-git clone <repo>
-cd promptshield
+# 1. install dependencies
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 
-# 2. Start Ollama
-ollama serve
+# 2. pull the model
 ollama pull llama3.2
 
-# 3. Copy env template
-cp .env.example .env
-
-# 4. Run the agent (unguarded — tests Ollama connection)
-python main.py --demo benign
-python main.py --demo attack_direct   # See what gets through without guardrails
-
-# 5. Build vector stores (required before running guarded pipeline)
-python vectorstore/build_stores.py
-
-# 6. Run the full guarded pipeline (after layers are built)
-# python main.py --guarded --query "Your query here"
+# 3. build vector stores (downloads HackAPrompt + TensorTrust datasets)
+python vectorstore/build_stores.py --max-samples 500   # fast dev build
+# python vectorstore/build_stores.py                   # full build (~600k samples)
 ```
 
 ---
 
-## Project Structure
+## Running
+
+```bash
+# terminal 1 — start Ollama
+ollama serve
+
+# terminal 2 — start Flask API
+python api/app.py
+
+# then open frontend/index.html in your browser
+```
+
+**CLI mode (no API needed):**
+```bash
+python main.py --demo benign
+python main.py --demo attack_direct
+python main.py --query "your query here"
+```
+
+---
+
+## API
+
+Flask runs on `http://localhost:5000`
+
+| Endpoint | Body | Description |
+|----------|------|-------------|
+| `POST /check` | `{"query": "..."}` | Layers 1+2 only, fast (~200ms) |
+| `POST /analyze` | `{"query": "..."}` | Full pipeline + agent (~30s) |
+| `POST /layer1` | `{"query": "..."}` | Intent classifier only |
+| `POST /layer2` | `{"query": "..."}` | Policy checker only |
+| `POST /layer3` | `{"tool_output": "...", "tool_name": "...", "original_query": "..."}` | Tool output inspector |
+| `POST /layer4` | `{"response": "...", "original_query": "..."}` | Response auditor |
+| `GET /health` | — | Health check |
+
+---
+
+## Evaluation
+
+```bash
+python evaluation/eval_layer1.py --fast          # Layer 1 vs HackAPrompt
+python evaluation/eval_layer2.py --show-boundary # Layer 2 policy tests
+python evaluation/eval_layer3.py --show-sanitized # Layer 3 indirect injection
+python evaluation/eval_layer4.py                 # Layer 4 PII/toxicity/leak
+python evaluation/eval_full_pipeline.py          # end-to-end with layer contribution
+```
+
+Results saved to `evaluation/results/`
+
+---
+
+## Datasets
+
+- **HackAPrompt** — `hackaprompt/hackaprompt-dataset` (~600k adversarial prompts)
+- **TensorTrust** — `tensortrust/tensortrust-data` (~126k attack/defense pairs)
+
+---
+
+## Project structure
 
 ```
 promptshield/
-├── main.py                    # Entry point
-├── config.yaml                # All thresholds and model settings
-├── agent/                     # LangChain ReAct agent + tools
-├── layers/                    # The 4 guardrail layers
-├── models/                    # Shared ML model wrappers
-├── vectorstore/               # FAISS vector stores for fast similarity search
-├── pipeline/                  # Orchestrator + audit logger + sanitizer
-├── data/                      # Attack embeddings, policy rules, datasets
-├── evaluation/                # Benchmarking against HackAPrompt + TensorTrust
-└── api/                       # Flask REST API
+├── agent/          LangChain ReAct agent + tools
+├── layers/         4 guardrail layers
+├── models/         Embedder, NLI classifier, PII detector, toxicity model
+├── vectorstore/    FAISS store + build script
+├── pipeline/       Orchestrator (sieve.py) + audit logger
+├── evaluation/     Benchmarking scripts
+├── api/            Flask REST API
+├── frontend/       Demo UI (index.html)
+├── data/           Policy rules + attack embeddings
+└── config.yaml     All thresholds and settings
 ```
-
----
-
-## Evaluation Benchmarks
-
-- **HackAPrompt** (`hackaprompt/hackaprompt-dataset`) — ~600K adversarial prompts
-- **TensorTrust** (`tensortrust/tensortrust-data`) — ~126K attack/defense pairs
-
----
-
-## Key Technologies
-
-| Library | Role |
-|---------|------|
-| `langchain` + `langchain-ollama` | ReAct agent framework |
-| `sentence-transformers` | Text → semantic embeddings (core of all 4 layers) |
-| `faiss-cpu` | Fast nearest-neighbor search over attack embedding library |
-| `transformers` (BART) | Zero-shot NLI for intent classification |
-| `presidio-analyzer` | PII detection and redaction |
-| `detoxify` | Toxicity classification |
-| `spacy` | Named Entity Recognition |

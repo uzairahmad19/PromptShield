@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Environment
+.env
+
+# Vector stores (large binary files — rebuild with build_stores.py)
+data/attack_embeddings/*.index
+data/attack_embeddings/*.meta
+data/attack_embeddings/*.pkl
+data/raw/
+
+# Logs
+logs/
+
+# Evaluation results
+evaluation/results/
+
+# HuggingFace cache
+.cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

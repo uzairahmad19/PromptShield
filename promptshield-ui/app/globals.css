@@ -1,0 +1,139 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@500;700;900&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --void:   #020508;
+  --bg0:    #030710;
+  --bg1:    #060d1c;
+  --bg2:    #091425;
+  --bg3:    #0d1c33;
+  --bg4:    #12243e;
+  --bg5:    #182d4c;
+
+  --border0: #0f1e35;
+  --border:  #162640;
+  --border2: #1e3457;
+  --border3: #2a4878;
+
+  --g:      #00ffa3;
+  --g1:     #00d988;
+  --g2:     #00a866;
+  --g-glow: rgba(0,255,163,0.13);
+  --g-dim:  rgba(0,255,163,0.06);
+
+  --r:      #ff2d55;
+  --r1:     #cc1f40;
+  --r-glow: rgba(255,45,85,0.15);
+
+  --a:      #ffcc00;
+  --a1:     #d4a900;
+  --a-glow: rgba(255,204,0,0.13);
+
+  --b:      #00c8ff;
+  --b1:     #0099cc;
+  --b-glow: rgba(0,200,255,0.12);
+
+  --p:      #b060ff;
+  --p-glow: rgba(176,96,255,0.13);
+
+  --t0: #c0d8ff;
+  --t1: #6888b0;
+  --t2: #334c6e;
+  --t3: #1a2e48;
+
+  --mono:    'IBM Plex Mono', monospace;
+  --tech:    'Share Tech Mono', monospace;
+  --display: 'Orbitron', sans-serif;
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; scroll-behavior: smooth; }
+
+body {
+  background: var(--bg0);
+  color: var(--t0);
+  font-family: var(--mono);
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 45% at 10% 5%,  rgba(0,255,163,0.04) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 35% at 90% 95%,  rgba(0,200,255,0.03) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 30% at 75% 15%,  rgba(176,96,255,0.02) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg1); }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border3); }
+
+::selection { background: rgba(0,255,163,0.18); color: var(--g); }
+
+@keyframes fade-up   { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+@keyframes fade-in   { from { opacity:0; } to { opacity:1; } }
+@keyframes spin      { to { transform: rotate(360deg); } }
+@keyframes pulse-glow{ 0%,100%{opacity:1} 50%{opacity:0.35} }
+@keyframes bar-fill  { from { width: 0 !important; } }
+@keyframes slide-right { from{opacity:0;transform:translateX(12px)} to{opacity:1;transform:translateX(0)} }
+@keyframes flicker   { 0%,91%,95%,100%{opacity:1} 92%,93%{opacity:0.6} 94%{opacity:0.85} }
+@keyframes march     { to { stroke-dashoffset: -20; } }
+@keyframes scan      { 0%{top:-2px} 100%{top:100%} }
+
+.fade-up     { animation: fade-up 0.32s cubic-bezier(0.16,1,0.3,1) both; }
+.fade-in     { animation: fade-in 0.2s ease both; }
+.slide-right { animation: slide-right 0.3s cubic-bezier(0.16,1,0.3,1) both; }
+.spin        { animation: spin 0.75s linear infinite; }
+.pulse       { animation: pulse-glow 2s ease-in-out infinite; }
+.flicker     { animation: flicker 10s ease-in-out infinite; }
+.score-bar   { animation: bar-fill 0.55s cubic-bezier(0.4,0,0.2,1) both; }
+
+.card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,255,163,0.3) 50%, transparent);
+}
+
+.input {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--t0);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+}
+.input:focus { border-color: var(--g2); box-shadow: 0 0 0 3px rgba(0,255,163,0.08); }
+.input::placeholder { color: var(--t2); }
+textarea.input { resize: none; line-height: 1.65; }

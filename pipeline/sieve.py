@@ -1,244 +1,146 @@
-"""
-pipeline/sieve.py
-------------------
-PromptShield Pipeline Orchestrator.
-
-Active layers:   1 (Intent Classifier), 2 (Policy Checker), 3 (Context Integrity)
-Pending layers:  4 (Response Auditor)
-
-Flow:
-    User Input
-        → Layer 1: IntentClassifier        → BLOCK or continue
-        → Layer 2: PolicyChecker           → BLOCK or continue
-        → Agent runs, tool outputs collected
-        → Layer 3: ContextIntegrityChecker → SANITIZE/BLOCK each tool output
-        → LLM generates response using sanitized tool outputs
-        → Layer 4: ResponseAuditor         → REDACT/FLAG or deliver [coming]
-        → Return safe response + full audit log
-"""
-
 from __future__ import annotations
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from pipeline.audit_logger import AuditLogger, BLOCK, PASS, SANITIZE, FLAG
+from pipeline.audit_logger import AuditLogger, BLOCK, PASS
 
-BLOCK_MESSAGES = {
-    1: (
-        "I'm unable to process this request. It appears to contain patterns "
-        "associated with prompt injection or adversarial intent."
-    ),
-    2: (
-        "This request cannot be processed because it appears to violate "
-        "one or more of the system's security policies."
-    ),
-    3: (
-        "A tool response contained injected instructions and has been blocked "
-        "to protect the integrity of this session."
-    ),
-    4: (
-        "The generated response was flagged by the safety auditor and has "
-        "been withheld. Please rephrase your request."
-    ),
+_BLOCK_MSG = {
+    1: "Request blocked — detected adversarial intent.",
+    2: "Request blocked — policy violation detected.",
+    3: "Request blocked — injected content found in tool output.",
+    4: "Response withheld — failed safety audit.",
 }
 
 
 class PromptShieldPipeline:
-    """
-    PromptShield Pipeline — orchestrates all 4 guardrail layers.
-
-    Active:  Layer 1 (Intent), Layer 2 (Policy), Layer 3 (Context Integrity)
-    Pending: Layer 4 (Response Auditor)
-    """
-
     def __init__(self, verbose: bool = True, use_nli: bool = True):
         self.verbose = verbose
         self.use_nli = use_nli
-        self._layer1 = None
-        self._layer2 = None
-        self._layer3 = None
-        self._layer4 = None
+        self._l1 = self._l2 = self._l3 = self._l4 = None
 
-    # ── Lazy Layer Loading ─────────────────────────────────────────────────────
-
-    def _get_layer1(self):
-        if self._layer1 is None:
+    def _layer1(self):
+        if not self._l1:
             from layers.layer1_intent import IntentClassifier
-            self._layer1 = IntentClassifier(use_nli=self.use_nli)
-        return self._layer1
+            self._l1 = IntentClassifier(use_nli=self.use_nli)
+        return self._l1
 
-    def _get_layer2(self):
-        if self._layer2 is None:
+    def _layer2(self):
+        if not self._l2:
             from layers.layer2_policy import PolicyChecker
-            self._layer2 = PolicyChecker()
-        return self._layer2
+            self._l2 = PolicyChecker()
+        return self._l2
 
-    def _get_layer3(self):
-        if self._layer3 is None:
+    def _layer3(self):
+        if not self._l3:
             from layers.layer3_context import ContextIntegrityChecker
-            self._layer3 = ContextIntegrityChecker()
-        return self._layer3
+            self._l3 = ContextIntegrityChecker()
+        return self._l3
 
-    # ── Main Pipeline ──────────────────────────────────────────────────────────
+    def _layer4(self):
+        if not self._l4:
+            from layers.layer4_auditor import ResponseAuditor
+            self._l4 = ResponseAuditor()
+        return self._l4
 
-    def run(self, user_input: str) -> dict:
-        """
-        Run user input through the full PromptShield pipeline.
+    def run(self, query: str) -> dict:
+        log = AuditLogger()
+        log.log_pipeline_start(query)
+        lr  = {}
 
-        Returns:
-            {
-                "output":           str
-                "blocked":          bool
-                "blocked_at_layer": int | None
-                "audit_session":    str
-                "layer_results":    dict
-            }
-        """
-        logger = AuditLogger()
-        logger.log_pipeline_start(user_input)
-        layer_results = {}
+        # L1
+        r1 = self._layer1().check(query)
+        lr["layer1"] = {"decision": r1.decision, "risk_score": round(r1.risk_score, 4),
+                         "faiss_score": round(r1.faiss_score, 4), "nli_score": round(r1.nli_score, 4),
+                         "reason": r1.reason}
+        log.log_layer_decision(1, r1.decision, r1.reason, r1.risk_score,
+                               {"faiss": r1.faiss_score, "nli": r1.nli_score, "label": r1.top_attack_label})
+        if r1.is_blocked:
+            log.log_pipeline_end(_BLOCK_MSG[1], True)
+            return self._blocked(_BLOCK_MSG[1], 1, log.session_id, lr)
 
-        # ── Layer 1 ────────────────────────────────────────────────────────────
-        l1_result = self._get_layer1().check(user_input)
-        layer_results["layer1"] = {
-            "decision":    l1_result.decision,
-            "risk_score":  round(l1_result.risk_score, 4),
-            "faiss_score": round(l1_result.faiss_score, 4),
-            "nli_score":   round(l1_result.nli_score, 4),
-            "reason":      l1_result.reason,
-        }
-        logger.log_layer_decision(
-            layer=1, decision=l1_result.decision,
-            reason=l1_result.reason, risk_score=l1_result.risk_score,
-            metadata={"faiss_score": l1_result.faiss_score,
-                      "nli_score": l1_result.nli_score,
-                      "top_attack_label": l1_result.top_attack_label},
-        )
-        if l1_result.is_blocked:
-            msg = BLOCK_MESSAGES[1]
-            logger.log_pipeline_end(msg, was_blocked=True)
-            return self._blocked_response(msg, 1, logger.session_id, layer_results)
+        # L2
+        r2 = self._layer2().check(query)
+        lr["layer2"] = {"decision": r2.decision, "violation_score": round(r2.violation_score, 4),
+                         "violated_policy": r2.violated_policy_id, "severity": r2.violated_policy_severity,
+                         "reason": r2.reason}
+        log.log_layer_decision(2, r2.decision, r2.reason, r2.violation_score,
+                               {"policy": r2.violated_policy_id, "severity": r2.violated_policy_severity})
+        if r2.is_blocked:
+            log.log_pipeline_end(_BLOCK_MSG[2], True)
+            return self._blocked(_BLOCK_MSG[2], 2, log.session_id, lr)
 
-        # ── Layer 2 ────────────────────────────────────────────────────────────
-        l2_result = self._get_layer2().check(user_input)
-        layer_results["layer2"] = {
-            "decision":        l2_result.decision,
-            "violation_score": round(l2_result.violation_score, 4),
-            "violated_policy": l2_result.violated_policy_id,
-            "reason":          l2_result.reason,
-        }
-        logger.log_layer_decision(
-            layer=2, decision=l2_result.decision,
-            reason=l2_result.reason, risk_score=l2_result.violation_score,
-            metadata={"violated_policy_id": l2_result.violated_policy_id,
-                      "violated_policy_severity": l2_result.violated_policy_severity},
-        )
-        if l2_result.is_blocked:
-            msg = BLOCK_MESSAGES[2]
-            logger.log_pipeline_end(msg, was_blocked=True)
-            return self._blocked_response(msg, 2, logger.session_id, layer_results)
-
-        # ── Run Agent (collect intermediate steps for Layer 3) ─────────────────
+        # agent
         try:
             from agent.react_agent import run_agent
-            agent_result = run_agent(user_input, verbose=self.verbose)
-            final_response = agent_result.get("output", "No response generated.")
-            intermediate_steps = agent_result.get("intermediate_steps", [])
+            agent_out = run_agent(query, verbose=self.verbose)
+            response  = agent_out.get("output", "")
+            steps     = agent_out.get("intermediate_steps", [])
         except Exception as e:
-            logger.log_error(str(e))
-            final_response = f"An error occurred: {str(e)}"
-            intermediate_steps = []
+            log.log_error(str(e))
+            response, steps = f"Agent error: {e}", []
 
-        # ── Layer 3: Inspect every tool output ────────────────────────────────
-        l3 = self._get_layer3()
-        l3_results_list = []
-        l3_any_blocked = False
-        sanitized_steps = []
+        # L3 — check each tool output
+        l3  = self._layer3()
+        l3_results = []
+        blocked_l3 = False
 
-        for action, observation in intermediate_steps:
-            l3_result = l3.check(
-                tool_output=str(observation),
-                tool_name=action.tool,
-                original_user_query=user_input,
-            )
-            l3_results_list.append({
-                "tool":             l3_result.tool_name,
-                "decision":         l3_result.decision,
-                "semantic_score":   round(l3_result.semantic_score, 4),
-                "drift_score":      round(l3_result.intent_drift_score, 4),
-                "structural_hits":  len(l3_result.structural_hits),
-                "reason":           l3_result.reason[:80],
-            })
-
-            logger.log_tool_call(
-                tool_name=action.tool,
-                tool_input=str(action.tool_input),
-                tool_output=str(observation),
-            )
-            logger.log_layer_decision(
-                layer=3,
-                decision=l3_result.decision,
-                reason=l3_result.reason,
-                risk_score=l3_result.semantic_score,
-                metadata={
-                    "tool":            l3_result.tool_name,
-                    "structural_hits": l3_result.structural_hits[:2],
-                    "drift_score":     l3_result.intent_drift_score,
-                },
-            )
-
-            if l3_result.is_blocked:
-                l3_any_blocked = True
+        for action, obs in steps:
+            r3 = l3.check(str(obs), action.tool, query)
+            l3_results.append({"tool": r3.tool_name, "decision": r3.decision,
+                                "semantic_score": round(r3.semantic_score, 4),
+                                "drift_score": round(r3.intent_drift_score, 4),
+                                "structural_hits": len(r3.structural_hits),
+                                "reason": r3.reason[:80]})
+            log.log_tool_call(action.tool, str(action.tool_input), str(obs))
+            log.log_layer_decision(3, r3.decision, r3.reason, r3.semantic_score,
+                                   {"tool": r3.tool_name, "drift": r3.intent_drift_score})
+            if r3.is_blocked:
+                blocked_l3 = True
                 break
 
-            sanitized_steps.append((action, l3_result.output_to_use))
+        lr["layer3"] = l3_results
+        if blocked_l3:
+            log.log_pipeline_end(_BLOCK_MSG[3], True)
+            return self._blocked(_BLOCK_MSG[3], 3, log.session_id, lr)
 
-        layer_results["layer3"] = l3_results_list
+        # L4
+        r4 = self._layer4().check(response, query)
+        lr["layer4"] = {"decision": r4.decision,
+                         "pii_found": r4.pii_result.found if r4.pii_result else False,
+                         "leak_score": round(r4.system_prompt_leak_score, 4),
+                         "fidelity_score": round(r4.intent_fidelity_score, 4),
+                         "toxicity_score": round(r4.toxicity_score, 4),
+                         "flags": r4.flags, "reason": r4.reason}
+        log.log_layer_decision(4, r4.decision, r4.reason, r4.toxicity_score,
+                               {"pii": r4.pii_result.found if r4.pii_result else False,
+                                "leak": r4.system_prompt_leak_score,
+                                "fidelity": r4.intent_fidelity_score})
+        if r4.is_blocked:
+            log.log_pipeline_end(_BLOCK_MSG[4], True)
+            return self._blocked(_BLOCK_MSG[4], 4, log.session_id, lr)
 
-        if l3_any_blocked:
-            msg = BLOCK_MESSAGES[3]
-            logger.log_pipeline_end(msg, was_blocked=True)
-            return self._blocked_response(msg, 3, logger.session_id, layer_results)
+        final = r4.final_response
+        log.log_pipeline_end(final, False)
+        return {"output": final, "blocked": False, "blocked_at_layer": None,
+                "audit_session": log.session_id, "layer_results": lr}
 
-        # ── Layer 4 placeholder ────────────────────────────────────────────────
+    def check_only(self, query: str) -> dict:
+        lr = {}
+        r1 = self._layer1().check(query)
+        lr["layer1"] = {"decision": r1.decision, "risk_score": round(r1.risk_score, 4), "reason": r1.reason}
+        if r1.is_blocked:
+            return {"blocked": True, "blocked_at_layer": 1, "layer_results": lr}
 
-        logger.log_pipeline_end(final_response, was_blocked=False)
-        return {
-            "output":           final_response,
-            "blocked":          False,
-            "blocked_at_layer": None,
-            "audit_session":    logger.session_id,
-            "layer_results":    layer_results,
-        }
+        r2 = self._layer2().check(query)
+        lr["layer2"] = {"decision": r2.decision, "violation_score": round(r2.violation_score, 4), "reason": r2.reason}
+        if r2.is_blocked:
+            return {"blocked": True, "blocked_at_layer": 2, "layer_results": lr}
 
-    def check_only(self, user_input: str) -> dict:
-        """Run only Layers 1 + 2 without the agent. For testing."""
-        layer_results = {}
-
-        l1 = self._get_layer1().check(user_input)
-        layer_results["layer1"] = {"decision": l1.decision,
-                                    "risk_score": round(l1.risk_score, 4),
-                                    "reason": l1.reason}
-        if l1.is_blocked:
-            return {"blocked": True, "blocked_at_layer": 1, "layer_results": layer_results}
-
-        l2 = self._get_layer2().check(user_input)
-        layer_results["layer2"] = {"decision": l2.decision,
-                                    "violation_score": round(l2.violation_score, 4),
-                                    "reason": l2.reason}
-        if l2.is_blocked:
-            return {"blocked": True, "blocked_at_layer": 2, "layer_results": layer_results}
-
-        return {"blocked": False, "blocked_at_layer": None, "layer_results": layer_results}
+        return {"blocked": False, "blocked_at_layer": None, "layer_results": lr}
 
     @staticmethod
-    def _blocked_response(message, layer, session_id, layer_results):
-        return {
-            "output":           message,
-            "blocked":          True,
-            "blocked_at_layer": layer,
-            "audit_session":    session_id,
-            "layer_results":    layer_results,
-        }
+    def _blocked(msg, layer, sid, lr):
+        return {"output": msg, "blocked": True, "blocked_at_layer": layer,
+                "audit_session": sid, "layer_results": lr}

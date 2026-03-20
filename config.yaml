@@ -1,8 +1,3 @@
-# ============================================================
-#  PromptShield Configuration
-#  All tunable parameters live here. Never hardcode these.
-# ============================================================
-
 project:
   name: "PromptShield"
   version: "1.0.0"
@@ -36,7 +31,7 @@ layer2:
   enabled: true
   policy_violation_threshold: 0.68
   policies_file: "data/policy_rules/policies.json"
-  policy_embeddings_file: "data/attack_embeddings/policy_embeddings.pkl"
+  policy_embeddings_file: "data/attack_embeddings/policy_embeddings"
 
 # ── Layer 3: Context Integrity Check (Indirect Injection) ────
 layer3:
@@ -64,7 +59,7 @@ layer3:
 layer4:
   enabled: true
   system_prompt_leak_threshold: 0.80
-  intent_fidelity_threshold: 0.30
+  intent_fidelity_threshold: 0.15
   toxicity_threshold: 0.75
   pii_entities:
     - "PERSON"
