@@ -4,6 +4,8 @@ import sys
 import threading
 import time
 import traceback
+import json as _json
+from pathlib import Path as _Path
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -27,6 +29,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("promptshield.api")
 
+_LOG_FILE = _Path(__file__).resolve().parent.parent / "logs" / "promptshield_audit.jsonl"
 
 def _warmup_nli():
     """
@@ -215,7 +218,83 @@ def layer4():
                "toxicity_score": round(r.toxicity_score, 4),
                "flags": r.flags, "final_response": r.final_response[:500],
                "was_modified": r.was_modified, "reason": r.reason}, time.time() - t)
+@app.route("/logs")
+def get_logs():
+    """Return the last N log entries, optionally filtered by ?session=<id>."""
+    n       = int(request.args.get("n", 100))
+    session = request.args.get("session", None)
+    if not _LOG_FILE.exists():
+        return ok({"entries": []})
+    lines = _LOG_FILE.read_text(encoding="utf-8").splitlines()
+    entries = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = _json.loads(line)
+        except Exception:
+            continue
+        if session and obj.get("session_id") != session:
+            continue
+        entries.append(obj)
+    return ok({"entries": entries[-n:]})
 
+
+@app.route("/logs/stream")
+def stream_logs():
+    """
+    Server-Sent Events: tails the JSONL log file and streams new entries.
+    Filter to a single session with ?session=<id>.
+    """
+    import time as _time
+
+    session = request.args.get("session", None)
+
+    def generate():
+        if not _LOG_FILE.exists():
+            _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _LOG_FILE.touch()
+
+        # Replay any existing lines for this session first
+        existing = _LOG_FILE.read_text(encoding="utf-8").splitlines()
+        for line in existing:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = _json.loads(line)
+            except Exception:
+                continue
+            if session and obj.get("session_id") != session:
+                continue
+            yield f"data: {_json.dumps(obj)}\n\n"
+
+        # Tail for new lines indefinitely
+        with open(_LOG_FILE, "r", encoding="utf-8") as f:
+            f.seek(0, 2)
+            while True:
+                line = f.readline()
+                if not line:
+                    _time.sleep(0.15)
+                    yield ": ping\n\n"
+                    continue
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = _json.loads(line)
+                except Exception:
+                    continue
+                if session and obj.get("session_id") != session:
+                    continue
+                yield f"data: {_json.dumps(obj)}\n\n"
+
+    return app.response_class(
+        generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 if __name__ == "__main__":
     print("\n[PromptShield] Flask API on http://localhost:5000\n")

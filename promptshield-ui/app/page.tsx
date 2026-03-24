@@ -5,6 +5,7 @@ import { Terminal, LogEntry, createLog } from '@/components/Terminal'
 import { DemoTab } from '@/components/DemoTab'
 import { EvaluationTab } from '@/components/EvaluationTab'
 import { AboutTab } from '@/components/AboutTab'
+import { LayersTab } from '@/components/LayersTab'
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('demo')
@@ -25,6 +26,7 @@ export default function Home() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', flex: 1, overflow: 'hidden', minHeight: 0 }}>
         <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {activeTab === 'demo'       && <DemoTab addLogs={addLogs} />}
+          {activeTab === 'layers'     && <LayersTab addLogs={addLogs} />}
           {activeTab === 'evaluation' && <EvaluationTab />}
           {activeTab === 'about'      && <AboutTab />}
         </div>

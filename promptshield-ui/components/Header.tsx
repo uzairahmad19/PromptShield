@@ -4,6 +4,7 @@ import { healthCheck } from '@/lib/api'
 
 const TABS = [
   { id: 'demo',       label: 'DEMO',       icon: '▶' },
+  { id: 'layers',     label: 'LAYERS',     icon: '⬡' },
   { id: 'evaluation', label: 'EVALUATION', icon: '◈' },
   { id: 'about',      label: 'ABOUT',      icon: '◉' },
 ]
@@ -57,7 +58,7 @@ export function Header({ activeTab, onTabChange }: { activeTab: string; onTabCha
             PROMPTSHIELD
           </div>
           <div style={{ fontSize: 8, color: 'var(--t2)', letterSpacing: '0.16em', fontFamily: 'var(--tech)', marginTop: 1 }}>
-            THREAT DETECTION FOR LLMs
+            THREAT DETECTION v1.0
           </div>
         </div>
       </div>

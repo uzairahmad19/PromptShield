@@ -17,7 +17,7 @@ const STACK = [
 
 export function AboutTab() {
   return (
-    <div style={{ overflowY:'auto', height:'100%', padding:'14px'}}>
+    <div style={{ overflowY:'auto', height:'100%', padding:'14px' }}>
       {/* Hero */}
       <div style={{
         background:'var(--bg1)', border:'1px solid var(--border)', borderRadius:'var(--radius-lg)',
@@ -96,7 +96,7 @@ export function AboutTab() {
       </div>
 
       <div style={{ fontSize:10, color:'var(--t3)', fontFamily:'var(--tech)', letterSpacing:'0.06em', textAlign:'center', padding:'8px 0' }}>
-        B.Tech Final Year Project · Jamia Hamdard · 2025–26
+        B.Tech Final Year Project · Jamia Hamdard · 2026
       </div>
     </div>
   )
