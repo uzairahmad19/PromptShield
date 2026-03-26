@@ -99,3 +99,9 @@ evaluation:
   tensortrust_dataset: "tensortrust/tensortrust-data"
   max_eval_samples: 500
   output_dir: "evaluation/results"
+# ── MongoDB ────────────────────────────────────────────────────────────────
+mongodb:
+  uri:        "mongodb://localhost:27017"   # override with MONGO_URI env var
+  database:   "promptshield"               # override with MONGO_DB env var
+  collection: "audit_logs"                 # override with MONGO_COLL env var
+  enabled:    true
