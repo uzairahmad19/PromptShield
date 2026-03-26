@@ -3,6 +3,7 @@ import os
 import sys
 import yaml
 from dataclasses import dataclass, field
+from dotenv import load_dotenv 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -10,11 +11,17 @@ from models.embedder import Embedder
 from models.classifier import ZeroShotClassifier
 from vectorstore.faiss_store import FAISSStore
 
+# Load the .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 def _cfg():
     p = os.path.join(os.path.dirname(__file__), "..", "config.yaml")
-    with open(p) as f:
-        return yaml.safe_load(f)
+    with open(p, "r") as f:
+        yaml_content = f.read()
+    
+    # Expand ${VAR} syntax in the string using environment variables
+    expanded_content = os.path.expandvars(yaml_content)
+    return yaml.safe_load(expanded_content)
 
 
 @dataclass
@@ -41,11 +48,29 @@ class IntentClassifier:
         self.sim_thresh  = c["similarity_threshold"]
         self.nli_thresh  = c["nli_threshold"]
         self.risk_thresh = c["risk_threshold"]
+        
+        # NEW: High confidence threshold to prevent data poisoning
+        self.auto_update_thresh = c["auto_update_threshold"] 
+        
         self.top_k       = c["top_k"]
         self._embedder   = None
         self._nli        = None
         self._store      = None
         print(f"[Layer1] init (nli={'on' if use_nli else 'off'})")
+
+    # NEW: Property to hold the path for saving updates
+    @property
+    def store_path(self):
+        return os.path.join(os.path.dirname(__file__), "..", "data", "attack_embeddings", "attacks")
+
+    @property
+    def store(self):
+        if not self._store:
+            path = self.store_path
+            if not FAISSStore.exists(path):
+                raise FileNotFoundError(f"attack store missing — run: python vectorstore/build_stores.py")
+            self._store = FAISSStore.load(path)
+        return self._store
 
     @property
     def embedder(self):
@@ -64,15 +89,6 @@ class IntentClassifier:
                 print(f"[Layer1] NLI load failed: {e}, falling back to FAISS-only")
                 self.use_nli = False
         return self._nli
-
-    @property
-    def store(self):
-        if not self._store:
-            path = os.path.join(os.path.dirname(__file__), "..", "data", "attack_embeddings", "attacks")
-            if not FAISSStore.exists(path):
-                raise FileNotFoundError(f"attack store missing — run: python vectorstore/build_stores.py")
-            self._store = FAISSStore.load(path)
-        return self._store
 
     def check(self, text: str) -> Layer1Result:
         if not self.enabled:
@@ -96,6 +112,23 @@ class IntentClassifier:
             if nli_score >= self.nli_thresh:
                 reasons.append(f"NLI {nli_score:.3f}")
             reason = " | ".join(reasons) or f"risk {risk:.3f} >= threshold"
+
+            # --- AUTO-UPDATE LOGIC ---
+            if risk >= self.auto_update_thresh:
+                print(f"[Layer1] High confidence attack detected (risk={risk:.3f}). Auto-updating FAISS store.")
+                try:
+                    # Re-embed the text to ensure we have the exact vector
+                    vec = self.embedder.embed_one(text)
+                    new_meta = {
+                        "text": text, 
+                        "label": "auto_blocked", 
+                        "source": "dynamic_update"
+                    }
+                    self.store.add_item(vec, new_meta)
+                    self.store.save(self.store_path)
+                except Exception as e:
+                    print(f"[Layer1] Failed to auto-update FAISS store: {e}")
+
             return Layer1Result("BLOCK", risk, faiss_score, nli_score,
                                 top_match, top_label, nli_hyp, reason, top_k)
 

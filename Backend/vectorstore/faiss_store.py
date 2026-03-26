@@ -35,6 +35,21 @@ class FAISSStore:
         self.metadata = metadata
         print(f"[FAISS] done — {self.index.ntotal} vectors")
 
+    def add_item(self, vector: np.ndarray, metadata: dict):
+        """Dynamically adds a single vector and its metadata to the index."""
+        assert self.index is not None, "call build() or load() first"
+        
+        # Ensure the vector is correctly shaped (1, dim) and typed
+        if vector.ndim == 1:
+            vector = vector.reshape(1, -1)
+        assert vector.shape[1] == self.dim, f"expected dim {self.dim}, got {vector.shape[1]}"
+        vector = vector.astype(np.float32)
+
+        # Add to FAISS index and local metadata
+        self.index.add(vector)
+        self.metadata.append(metadata)
+        print(f"[FAISS] added 1 dynamic vector, total is now {self.index.ntotal}")
+
     def search(self, q: np.ndarray, top_k: int = 5) -> tuple[np.ndarray, list[dict]]:
         assert self.index is not None, "call build() or load() first"
         q = q.astype(np.float32).reshape(1, -1)

@@ -7,7 +7,7 @@ project:
 llm:
   provider: "ollama"
   model: "llama3.2"
-  base_url: "http://localhost:11434"
+  base_url: "${OLLAMA_BASE_URL}"
   temperature: 0.0          # 0.0 = deterministic, important for a security system
   max_tokens: 2048
 
@@ -24,6 +24,7 @@ layer1:
   nli_model: "facebook/bart-large-mnli"
   nli_threshold: 0.75
   risk_threshold: 0.70
+  auto_update_threshold: 0.90
   top_k: 5
 
 # ── Layer 2: Semantic Policy Check ───────────────────────────
@@ -75,7 +76,7 @@ layer4:
 logging:
   log_dir: "logs"
   log_file: "promptshield_audit.jsonl"
-  log_level: "INFO"
+  log_level: "${LOG_LEVEL}"
   log_inputs: true
   log_layer_decisions: true
   log_tool_outputs: true
@@ -101,7 +102,7 @@ evaluation:
   output_dir: "evaluation/results"
 # ── MongoDB ────────────────────────────────────────────────────────────────
 mongodb:
-  uri:        "mongodb://localhost:27017"   # override with MONGO_URI env var
-  database:   "promptshield"               # override with MONGO_DB env var
-  collection: "audit_logs"                 # override with MONGO_COLL env var
+  uri:        "${DATABASE_URL}"   
+  database:   "promptshield"               
+  collection: "audit_logs"                 
   enabled:    true
