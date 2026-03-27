@@ -31,7 +31,9 @@ logger = logging.getLogger("promptshield.db")
 MONGO_URI  = os.getenv("MONGO_URI",  "mongodb://localhost:27017")
 MONGO_DB   = os.getenv("MONGO_DB",   "promptshield")
 MONGO_COLL = os.getenv("MONGO_COLL", "audit_logs")
+MONGO_POLICIES_COLL = os.getenv("MONGO_POLICIES_COLL", "policies")
 
+_policies_coll = None
 _client   = None
 _db       = None
 _coll     = None
@@ -224,3 +226,66 @@ def delete_logs(session_id: Optional[str] = None) -> int:
     query = {"session_id": session_id} if session_id else {}
     result = coll.delete_many(query)
     return result.deleted_count
+
+
+def get_policies_collection():
+    """Return the policies collection."""
+    global _client, _db, _policies_coll
+    if _policies_coll is not None:
+        return _policies_coll
+    
+    # Ensure standard collection is connected first
+    get_collection() 
+    with _lock:
+        if _policies_coll is None and _db is not None:
+            _policies_coll = _db[MONGO_POLICIES_COLL]
+            logger.info("Connected to MongoDB collection: %s", MONGO_POLICIES_COLL)
+    return _policies_coll
+
+def get_all_policies() -> list:
+    """Fetch all policies from MongoDB."""
+    try:
+        coll = get_policies_collection()
+        # Find all, exclude the MongoDB ObjectId so it serializes nicely for React
+        cursor = coll.find({}, {"_id": 0})
+        return list(cursor)
+    except Exception as e:
+        logger.error("Failed to fetch policies from Mongo: %s", e)
+        return []
+
+def save_policies(policies_list: list) -> bool:
+    """Overwrite all policies in MongoDB with the provided list."""
+    try:
+        coll = get_policies_collection()
+        # Drop existing policies and insert the new array
+        coll.delete_many({})
+        if policies_list:
+            coll.insert_many(policies_list)
+        return True
+    except Exception as e:
+        logger.error("Failed to save policies to Mongo: %s", e)
+        return False
+    
+def delete_policy(policy_id: str) -> bool:
+    """Delete a single policy by its ID from MongoDB."""
+    try:
+        coll = get_policies_collection()
+        result = coll.delete_one({"id": policy_id})
+        return result.deleted_count > 0
+    except Exception as e:
+        logger.error("Failed to delete policy from Mongo: %s", e)
+        return False
+    
+def update_policy_status(policy_id: str, enabled: bool) -> bool:
+    """Update the enabled status of a specific policy in MongoDB."""
+    try:
+        coll = get_policies_collection()
+        # $set only modifies the specific field
+        result = coll.update_one(
+            {"id": policy_id},
+            {"$set": {"enabled": enabled}}
+        )
+        return result.modified_count > 0 or result.matched_count > 0
+    except Exception as e:
+        logger.error("Failed to update policy status in Mongo: %s", e)
+        return False

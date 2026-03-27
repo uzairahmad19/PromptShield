@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Terminal, Copy } from 'lucide-react';
 
 interface Log {
@@ -41,6 +41,14 @@ function getLevelBg(level: string) {
 
 export function AuditTerminal({ logs }: AuditTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
+  
+  // 1. Add a mounted state
+  const [isMounted, setIsMounted] = useState(false);
+
+  // 2. Set mounted to true once the component loads in the browser
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Auto-scroll to bottom when logs update
   useEffect(() => {
@@ -72,14 +80,16 @@ export function AuditTerminal({ logs }: AuditTerminalProps) {
           </div>
         ) : (
           logs.map((log, index) => {
-            const timestamp = new Date(log.timestamp).toLocaleTimeString();
+            // 3. Only calculate the local time if we are safely mounted on the client
+            const timestamp = isMounted ? new Date(log.timestamp).toLocaleTimeString() : '--:--:--';
+            
             return (
               <div
                 key={index}
                 className="flex gap-3 items-start hover:bg-slate-900/30 px-2 py-1 rounded transition-colors group"
               >
                 {/* Timestamp */}
-                <span className="text-slate-600 flex-shrink-0 min-w-fit">{timestamp}</span>
+                <span className="text-slate-600 flex-shrink-0 min-w-fit w-16">{timestamp}</span>
 
                 {/* Level Badge */}
                 <span

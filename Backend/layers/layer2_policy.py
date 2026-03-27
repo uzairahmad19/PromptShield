@@ -61,10 +61,27 @@ class PolicyChecker:
     @property
     def policies(self):
         if not self._policies:
-            p = os.path.join(os.path.dirname(__file__), "..", "data", "policy_rules", "policies.json")
-            with open(p) as f:
-                self._policies = {x["id"]: x for x in json.load(f)["policies"]}
+            try:
+                from database.mongo import is_available, get_all_policies
+                if is_available():
+                    # Fetch from MongoDB
+                    pols = get_all_policies()
+                    self._policies = {x["id"]: x for x in pols}
+                    print("[Layer2] Loaded policies from MongoDB.")
+                else:
+                    raise Exception("MongoDB not available, using JSON fallback.")
+            except Exception as e:
+                # Fallback to JSON file
+                print(f"[Layer2] {e}")
+                p = os.path.join(os.path.dirname(__file__), "..", "data", "policy_rules", "policies.json")
+                with open(p) as f:
+                    self._policies = {x["id"]: x for x in json.load(f)["policies"]}
         return self._policies
+
+    def reload_policies(self):
+        """Force the policy checker to reload policies from disk on the next check."""
+        print("[Layer2] Clearing cached policies to reload from disk.")
+        self._policies = None
 
     def check(self, text: str) -> Layer2Result:
         if not self.enabled:
@@ -91,6 +108,9 @@ class PolicyChecker:
         best: dict[str, dict] = {}
         for score, meta in zip(scores, results):
             pid = meta.get("policy_id", "?")
+            pol_data = self.policies.get(pid, {})
+            if not pol_data.get("enabled", True):
+                continue
             if pid not in best or float(score) > best[pid]["score"]:
                 best[pid] = {
                     "score":    float(score),
@@ -125,9 +145,12 @@ class PolicyChecker:
         vec = self.embedder.embed_one(text)
         best_score, best_meta = 0.0, {}
         for pol in self.policies.values():
+            if not pol.get("enabled", True):
+                continue
             examples = pol.get("violation_examples", [])
             if not examples:
                 continue
+            
             vecs = self.embedder.embed_batch(examples)
             sims = self.embedder.cosine_similarity_matrix(vec, vecs)
             i = int(sims.argmax())

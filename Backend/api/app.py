@@ -376,6 +376,150 @@ def eval_results():
         
     return ok(data)
 
+# ── Policy endpoints ──────────────────────────────────────────────────────────
+
+POLICIES_FILE_PATH = _Path(__file__).resolve().parent.parent / "data" / "policy_rules" / "policies.json"
+
+@app.route('/policies', methods=['GET'])
+def get_policies():
+    """Fetch the current policies from MongoDB (fallback to JSON)."""
+    try:
+        if _mongo_available():
+            from database.mongo import get_all_policies
+            policies_list = get_all_policies()
+            # If Mongo is empty but JSON exists, we might want to seed it
+            if not policies_list and POLICIES_FILE_PATH.exists():
+                with open(POLICIES_FILE_PATH, 'r', encoding="utf-8") as f:
+                    file_data = _json.load(f)
+                    policies_list = file_data.get("policies", []) if isinstance(file_data, dict) else file_data
+                    # Seed Mongo with initial JSON data
+                    from database.mongo import save_policies as mongo_save
+                    mongo_save(policies_list)
+            
+            return ok({"policies": policies_list, "source": "mongodb"})
+
+        # Fallback to JSON
+        if not POLICIES_FILE_PATH.exists():
+            return ok({"policies": []})
+        with open(POLICIES_FILE_PATH, 'r', encoding="utf-8") as f:
+            file_data = _json.load(f)
+        policies_list = file_data.get("policies", []) if isinstance(file_data, dict) else file_data
+        return ok({"policies": policies_list, "source": "json"})
+        
+    except Exception as e:
+        logger.error("Failed to read policies: %s", e)
+        return err(str(e), 500)
+
+@app.route('/policies', methods=['POST'])
+def save_policies():
+    """Overwrite the policies in MongoDB."""
+    try:
+        data = request.get_json()
+        new_policies = data.get('policies', [])
+        
+        if _mongo_available():
+            from database.mongo import save_policies as mongo_save
+            mongo_save(new_policies)
+        else:
+            # Fallback to JSON file if Mongo is down
+            POLICIES_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with open(POLICIES_FILE_PATH, 'w', encoding="utf-8") as f:
+                _json.dump({"policies": new_policies}, f, indent=4)
+            
+        # Clear the memory cache in Layer 2 so the new rules apply instantly
+        l2().reload_policies()
+            
+        return ok({"message": "Policies updated successfully"})
+    except Exception as e:
+        logger.error("Failed to save policies: %s", e)
+        return err(str(e), 500)   
+
+@app.route('/policies/<policy_id>/status', methods=['PATCH'])
+def update_policy_status(policy_id):
+    """Toggle the enabled status of a specific policy."""
+    try:
+        data = request.get_json()
+        if "enabled" not in data:
+            return err("Missing 'enabled' boolean in request body", 400)
+        
+        enabled = bool(data["enabled"])
+
+        if _mongo_available():
+            from database.mongo import update_policy_status as mongo_update
+            success = mongo_update(policy_id, enabled)
+            if success:
+                l2().reload_policies()
+                return ok({"message": f"Policy {policy_id} status updated to {enabled}"})
+            return err("Policy not found in MongoDB", 404)
+            
+        else:
+            # Fallback for JSON file
+            if not POLICIES_FILE_PATH.exists():
+                return err("Policies file not found", 404)
+                
+            with open(POLICIES_FILE_PATH, 'r', encoding="utf-8") as f:
+                file_data = _json.load(f)
+            
+            policies_list = file_data.get("policies", []) if isinstance(file_data, dict) else file_data
+            
+            updated = False
+            for p in policies_list:
+                if p.get("id") == policy_id:
+                    p["enabled"] = enabled
+                    updated = True
+                    break
+            
+            if not updated:
+                return err("Policy not found in JSON", 404)
+                
+            with open(POLICIES_FILE_PATH, 'w', encoding="utf-8") as f:
+                _json.dump({"policies": policies_list}, f, indent=4)
+                
+            l2().reload_policies()
+            return ok({"message": f"Policy {policy_id} status updated in JSON"})
+
+    except Exception as e:
+        logger.error("Failed to update policy status: %s", e)
+        return err(str(e), 500)
+
+@app.route('/policies/<policy_id>', methods=['DELETE'])
+def delete_policy(policy_id):
+    """Delete a specific policy by ID."""
+    try:
+        if _mongo_available():
+            from database.mongo import delete_policy as mongo_delete
+            success = mongo_delete(policy_id)
+            if success:
+                l2().reload_policies()
+                return ok({"message": f"Policy {policy_id} deleted from MongoDB"})
+            return err("Policy not found in MongoDB", 404)
+            
+        else:
+            # Fallback for JSON file
+            if not POLICIES_FILE_PATH.exists():
+                return err("Policies file not found", 404)
+                
+            with open(POLICIES_FILE_PATH, 'r', encoding="utf-8") as f:
+                file_data = _json.load(f)
+            
+            policies_list = file_data.get("policies", []) if isinstance(file_data, dict) else file_data
+            
+            # Filter out the deleted ID
+            new_list = [p for p in policies_list if p.get("id") != policy_id]
+            
+            if len(new_list) == len(policies_list):
+                return err("Policy not found in JSON", 404)
+                
+            with open(POLICIES_FILE_PATH, 'w', encoding="utf-8") as f:
+                _json.dump({"policies": new_list}, f, indent=4)
+                
+            l2().reload_policies()
+            return ok({"message": f"Policy {policy_id} deleted from JSON"})
+
+    except Exception as e:
+        logger.error("Failed to delete policy: %s", e)
+        return err(str(e), 500)
+     
 @app.route("/logs/stream")
 def stream_logs():
     """
