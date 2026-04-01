@@ -1,13 +1,12 @@
-# 🛡️ PromptShield
+# PromptShield
 
-> **Intent Verification for Agentic AI Pipelines** — a 4-layer semantic security system that detects and blocks prompt injection attacks, policy violations, indirect injections, and unsafe responses in real-time.
+> **Intent Verification for Agentic AI Pipelines** - a 4-layer semantic security system that detects and blocks prompt injection attacks, policy violations, indirect injections, and unsafe responses in real-time.
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)
 ![Flask](https://img.shields.io/badge/Flask-3.0-green?logo=flask)
 ![MongoDB](https://img.shields.io/badge/MongoDB-4.7+-green?logo=mongodb)
 ![Ollama](https://img.shields.io/badge/LLM-Ollama%20%2F%20llama3.2-orange)
-![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ---
 
@@ -82,27 +81,27 @@ PromptShield is a full-stack AI security platform designed to protect agentic LL
 
 PromptShield processes every user query through four sequential layers. If any layer blocks the request, the pipeline short-circuits and returns a rejection immediately.
 
-### Layer 1 — Intent Classifier
+### Layer 1 - Intent Classifier
 Detects adversarial intent in user prompts using a hybrid approach:
 - **FAISS vector similarity** against a database of known attack embeddings
 - **NLI zero-shot classification** using `facebook/bart-large-mnli`
 - Combines both scores into a composite risk score (60% FAISS + 40% NLI); blocks if above threshold (`0.70`)
 - **Self-updating FAISS index** — when a prompt is blocked with very high confidence (risk ≥ `0.90`), the attack is automatically re-embedded and written back into the FAISS store (`attacks.index`). This means the index grows smarter over time, recognizing novel attack variants it has seen before without any manual intervention. A stricter `auto_update_threshold` (default `0.90` vs block threshold `0.70`) is deliberately used to prevent data poisoning — only near-certain attacks are added.
 
-### Layer 2 — Semantic Policy Check
+### Layer 2 - Semantic Policy Check
 Checks the prompt against organization-defined semantic policies stored in MongoDB:
 - Policies are embedded and stored in a FAISS index
 - Scores prompt similarity against each policy's violation examples
 - Blocks if the closest policy match exceeds the violation threshold (`0.68`)
 - Policies can be created, enabled/disabled, or deleted via the API or UI
 
-### Layer 3 — Context Integrity Check
+### Layer 3 - Context Integrity Check
 Guards against **indirect prompt injection** — malicious instructions hidden in tool outputs (web search results, file contents, etc.):
 - Detects structural injection markers (e.g., `ignore previous instructions`, `[INST]`, `<|im_start|>`)
 - Measures semantic drift between the original intent and tool output content
 - Truncates oversized tool outputs before they reach the LLM
 
-### Layer 4 — Response Auditor
+### Layer 4 - Response Auditor
 Audits the LLM's final response before returning it to the user:
 - **System prompt leak detection** — cosine similarity between response and system prompt
 - **Intent fidelity check** — ensures the response is relevant to the original query
@@ -214,7 +213,7 @@ Make sure the following are installed before proceeding:
 - **Python 3.11+**
 - **Node.js 18+** and **npm**
 - **MongoDB** (running locally on port `27017`)
-- **Ollama** — [install here](https://ollama.com)
+- **Ollama** - [install here](https://ollama.com)
 
 ---
 
