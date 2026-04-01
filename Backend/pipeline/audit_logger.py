@@ -35,7 +35,10 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def _cfg():
     p = _PROJECT_ROOT / "config.yaml"
     with open(p) as f:
-        return yaml.safe_load(f)
+        content = f.read()
+        import os
+        content = os.path.expandvars(content)
+        return yaml.safe_load(content)
 
 
 # Lazy import of mongo module — avoids import-time crash if pymongo is absent
