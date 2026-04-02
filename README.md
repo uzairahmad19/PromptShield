@@ -10,25 +10,6 @@
 
 ---
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Security Pipeline](#security-pipeline)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-  - [Backend Setup](#backend-setup)
-  - [Frontend Setup](#frontend-setup)
-- [Configuration](#configuration)
-- [Running the Project](#running-the-project)
-- [API Reference](#api-reference)
-- [Evaluation](#evaluation)
-- [Environment Variables](#environment-variables)
-
----
-
 ## Overview
 
 PromptShield is a full-stack AI security platform designed to protect agentic LLM pipelines from adversarial attacks. It sits between the user and the LLM, running every prompt and response through a sequential 4-layer guardrail system before allowing it to pass through.
@@ -44,11 +25,14 @@ PromptShield is a full-stack AI security platform designed to protect agentic LL
 ---
 
 ## DFD
-![alt text](l1.png)
-![alt text](l2.png)
+<img width="1254" height="351" alt="image" src="https://github.com/user-attachments/assets/78f3e556-8e1e-4bb5-8f9a-056c45228cb0" />
+<img width="1428" height="1087" alt="image" src="https://github.com/user-attachments/assets/14ee69e9-150d-49f0-826f-554755b1ab38" />
+
+
 ---
 ## Flow Chart
-![alt text](flowchart.png)
+<img width="366" height="2167" alt="image" src="https://github.com/user-attachments/assets/b5916064-8f1e-40e6-b0d4-f0f472b418f6" />
+
 
 ---
 ## Security Pipeline
