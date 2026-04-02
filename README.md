@@ -1,6 +1,6 @@
 # PromptShield
 
-> **Intent Verification for Agentic AI Pipelines** - a 4-layer semantic security system that detects and blocks prompt injection attacks, policy violations, indirect injections, and unsafe responses in real-time.
+> **Intent Verification for Agentic AI Pipelines** - A 4-layer semantic security system that detects and blocks prompt injection attacks, policy violations, indirect injections, and unsafe responses in real-time.
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)
@@ -10,7 +10,7 @@
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Architecture](#architecture)
@@ -43,40 +43,14 @@ PromptShield is a full-stack AI security platform designed to protect agentic LL
 
 ---
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Next.js Frontend                        │
-│  Playground │ Analytics │ Audit Logs │ Policy Config         │
-└───────────────────────┬─────────────────────────────────────┘
-                        │ HTTP / SSE (port 3000 → 5000)
-┌───────────────────────▼─────────────────────────────────────┐
-│                    Flask API (port 5000)                      │
-│  /analyze  /check  /layer1-4  /policies  /logs  /logs/stream │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-┌───────────────────────▼─────────────────────────────────────┐
-│              PromptShield Pipeline (sieve.py)                 │
-│                                                               │
-│  Layer 1          Layer 2          Layer 3          Layer 4  │
-│  Intent           Semantic         Context          Response  │
-│  Classifier  ──►  Policy     ──►  Integrity   ──►  Auditor   │
-│                   Check            Check                      │
-└───────────┬───────────────────────────────────────┬─────────┘
-            │                                       │
-  ┌─────────▼──────────┐               ┌────────────▼─────────┐
-  │   FAISS + Embedder │               │  Ollama (llama3.2)   │
-  │  all-MiniLM-L6-v2  │               │  ReAct Agent         │
-  └────────────────────┘               └──────────────────────┘
-                        │
-            ┌───────────▼────────────┐
-            │  MongoDB + JSONL Logs  │
-            └────────────────────────┘
-```
+## DFD
+![alt text](l1.png)
+![alt text](l2.png)
+---
+## Flow Chart
+![alt text](flowchart.png)
 
 ---
-
 ## Security Pipeline
 
 PromptShield processes every user query through four sequential layers. If any layer blocks the request, the pipeline short-circuits and returns a rejection immediately.
