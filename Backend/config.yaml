@@ -30,7 +30,7 @@ layer1:
 # ── Layer 2: Semantic Policy Check ───────────────────────────
 layer2:
   enabled: true
-  policy_violation_threshold: 0.68
+  policy_violation_threshold: 0.45
   policies_file: "data/policy_rules/policies.json"
   policy_embeddings_file: "data/attack_embeddings/policy_embeddings"
 
@@ -63,20 +63,17 @@ layer4:
   intent_fidelity_threshold: 0.15
   toxicity_threshold: 0.75
   pii_entities:
-    - "PERSON"
     - "EMAIL_ADDRESS"
     - "PHONE_NUMBER"
     - "CREDIT_CARD"
     - "US_SSN"
     - "IP_ADDRESS"
-    - "URL"
-    - "LOCATION"
 
 # ── Audit Logging ─────────────────────────────────────────────
 logging:
   log_dir: "logs"
   log_file: "promptshield_audit.jsonl"
-  log_level: "${LOG_LEVEL}"
+  log_level: "INFO"
   log_inputs: true
   log_layer_decisions: true
   log_tool_outputs: true
